@@ -10,42 +10,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps: 
-      - name: descargar codigo
+      - name: Descargar código
         uses: actions/checkout@v4
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DECKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}  # Corregido
 
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./app
+          context: .  # Corregido: usar raíz, no ./app
           push: true
           tags: 2001uri15/as-laboratorio-8-web:latest
 
-      - name: Login to Google Cloud
-        uses: google-github-actions/auth@v1
-        with: 
-          credentials_json: ${{ secrets.CLOUD_TOKEN}}
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2  # Cambiado
+        with:
           project_id: as2025-471612
+          service_account_key: ${{ secrets.CLOUD_TOKEN }}
+          export_default_credentials: true
 
-      - name: Login to Kubernetes
-        uses: lab8/setup-gke-gcloud-auth-plugin@v1
-
-      - name: Config kubectl
-        uses: google-github-actions/get-gke-credentials@v1
-        with: 
-          cluster_name: lab8
-          location: europe-north1
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials lab8 \
+            --location europe-north1 \
+            --project as2025-471612
 
       - name: Desplegar objetos Kubernetes
         run: |
-          kubectl apply -f ./k8s/deployment-web.yaml
-          kubectl apply -f ./k8s/deployment-redis.yaml
-          kubectl apply -f ./k8s/service-redis.yaml
-          kubectl apply -f ./k8s/loadBalancer.yaml
-          kubectl rollout restart deployment front-web
-          kubectl rollout restart deployment redis
+          # Aplicar todos los archivos YAML
+          kubectl apply -f ./k8s/
+          
+          # Si los archivos están separados:
+          # kubectl apply -f ./k8s/deployment-web.yaml
+          # kubectl apply -f ./k8s/deployment-redis.yaml
+          # kubectl apply -f ./k8s/service-redis.yaml
+          # kubectl apply -f ./k8s/loadBalancer.yaml
+          
+          # Restart deployments (con nombres correctos)
+          kubectl rollout restart deployment web-deployment  # Cambiado
+          kubectl rollout restart deployment redis-deployment  # Cambiado
+          
+          # Verificar estado
+          kubectl get all
+          kubectl get pods
+          
+          echo "Esperando a que los pods estén listos..."
+          kubectl wait --for=condition=ready pod -l app=web --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=redis --timeout=120s
+          
+          # Mostrar IP externa
+          echo "IP del LoadBalancer:"
+          kubectl get service web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
