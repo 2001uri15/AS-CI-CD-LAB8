@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: front-web
-        image: a2d3/as-laboratorio-8-web:latest  
+        image: 2001uri15/as-laboratorio-8-web:latest  
         ports:
         - containerPort: 5000
         env:
