@@ -22,7 +22,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .  # Corregido: usar raíz, no ./app
+          context: ./app/  # Corregido: usar raíz, no ./app
           push: true
           tags: 2001uri15/as-laboratorio-8-web:latest
 
