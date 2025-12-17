@@ -1,4 +1,4 @@
-name: laboratorio8
+name: LAB8
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps: 
-      - name: Descargar código
+      - name: descargar codigo
         uses: actions/checkout@v4
 
       - name: Login to Docker Hub
@@ -19,74 +19,30 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: dckr_pat_u2VxdSRPqlfcm9rcwUS5PsY60VA
 
-      - name: Build and push Docker image
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./app/  # Corregido: usar raíz, no ./app
+          context: ./app
           push: true
           tags: 2001uri15/as-laboratorio-8-web:latest
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.CLOUD_TOKEN }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
+      - name: Login to Google Cloud
+        uses: google-github-actions/auth@v1
+        with: 
+          credentials_json: ${{ secrets.CLOUD_TOKEN}}
           project_id: as2025-471612
 
-      - name: Verify authentication
-        run: |
-          echo "Verificando autenticación..."
-          gcloud auth list
-          gcloud config get-value project
-          echo "✅ Autenticación verificada"
-      
-      - name: Get GKE credentials
-        run: |
-          gcloud container clusters get-credentials lab8 \
-            --location europe-north1 \
-            --project as2025-471612
-      
-      - name: Verificar conexión Kubernetes
-        run: |
-          echo "Verificando conexión a Kubernetes..."
-          kubectl cluster-info
-          kubectl get nodes
-          echo "✅ Conexión establecida"
-      
+      - name: Config kubectl
+        uses: google-github-actions/get-gke-credentials@v1
+        with: 
+          cluster_name: lab8
+          location: europe-north1
+
       - name: Desplegar objetos Kubernetes
         run: |
-          echo "Aplicando configuración Kubernetes..."
-          
-          # Verifica que los archivos YAML existen
-          if [ -d "./k8s" ]; then
-            echo "Aplicando todos los archivos YAML de ./k8s/"
-            kubectl apply -f ./k8s/ --recursive
-          else
-            echo "⚠️ Carpeta ./k8s no encontrada, buscando archivos individuales..."
-            for file in deployment-web.yaml deployment-redis.yaml service-redis.yaml loadBalancer.yaml; do
-              if [ -f "./k8s/$file" ]; then
-                kubectl apply -f ./k8s/$file
-              fi
-            done
-          fi
-          
-          echo "Esperando a que los deployments estén disponibles..."
-          sleep 10
-          
-          echo "Verificando estado actual..."
-          kubectl get all
-          
-          echo "Restarting deployments para asegurar la última imagen..."
-          kubectl rollout restart deployment web-deployment
-          kubectl rollout restart deployment redis-deployment
-          
-          echo "Esperando a que los pods estén listos..."
-          kubectl wait --for=condition=ready pod -l app=web --timeout=180s
-          kubectl wait --for=condition=ready pod -l app=redis --timeout=180s
-          
-          echo "✅ Despliegue completado"
-          echo "IP del LoadBalancer:"
-          kubectl get service web-service -o wide
+          kubectl apply -f ./k8s/deployment-web.yaml
+          kubectl apply -f ./k8s/deployment-redis.yaml
+          kubectl apply -f ./k8s/service-redis.yaml
+          kubectl apply -f ./k8s/loadBalancer.yaml
+          kubectl rollout restart deployment front-web
+          kubectl rollout restart deployment redis
