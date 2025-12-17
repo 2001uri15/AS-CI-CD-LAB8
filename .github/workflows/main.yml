@@ -33,13 +33,13 @@ jobs:
           project_id: as2025-471612
 
       - name: Login to Kubernetes
-        uses: AS_Labo8/setup-gke-gcloud-auth-plugin@v1
+        uses: lab8/setup-gke-gcloud-auth-plugin@v1
 
       - name: Config kubectl
         uses: google-github-actions/get-gke-credentials@v1
         with: 
-          cluster_name: AS_Labo8
-          location: us-central1
+          cluster_name: lab8
+          location: europe-north1
 
       - name: Desplegar objetos Kubernetes
         run: |
