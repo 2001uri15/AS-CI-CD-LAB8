@@ -26,42 +26,67 @@ jobs:
           push: true
           tags: 2001uri15/as-laboratorio-8-web:latest
 
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2  # Cambiado
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.CLOUD_TOKEN }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: as2025-471612
-          service_account_key: ${{ secrets.CLOUD_TOKEN }}
-          export_default_credentials: true
 
+      - name: Verify authentication
+        run: |
+          echo "Verificando autenticación..."
+          gcloud auth list
+          gcloud config get-value project
+          echo "✅ Autenticación verificada"
+      
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials lab8 \
             --location europe-north1 \
             --project as2025-471612
-
+      
+      - name: Verificar conexión Kubernetes
+        run: |
+          echo "Verificando conexión a Kubernetes..."
+          kubectl cluster-info
+          kubectl get nodes
+          echo "✅ Conexión establecida"
+      
       - name: Desplegar objetos Kubernetes
         run: |
-          # Aplicar todos los archivos YAML
-          kubectl apply -f ./k8s/
+          echo "Aplicando configuración Kubernetes..."
           
-          # Si los archivos están separados:
-          # kubectl apply -f ./k8s/deployment-web.yaml
-          # kubectl apply -f ./k8s/deployment-redis.yaml
-          # kubectl apply -f ./k8s/service-redis.yaml
-          # kubectl apply -f ./k8s/loadBalancer.yaml
+          # Verifica que los archivos YAML existen
+          if [ -d "./k8s" ]; then
+            echo "Aplicando todos los archivos YAML de ./k8s/"
+            kubectl apply -f ./k8s/ --recursive
+          else
+            echo "⚠️ Carpeta ./k8s no encontrada, buscando archivos individuales..."
+            for file in deployment-web.yaml deployment-redis.yaml service-redis.yaml loadBalancer.yaml; do
+              if [ -f "./k8s/$file" ]; then
+                kubectl apply -f ./k8s/$file
+              fi
+            done
+          fi
           
-          # Restart deployments (con nombres correctos)
-          kubectl rollout restart deployment web-deployment  # Cambiado
-          kubectl rollout restart deployment redis-deployment  # Cambiado
+          echo "Esperando a que los deployments estén disponibles..."
+          sleep 10
           
-          # Verificar estado
+          echo "Verificando estado actual..."
           kubectl get all
-          kubectl get pods
+          
+          echo "Restarting deployments para asegurar la última imagen..."
+          kubectl rollout restart deployment web-deployment
+          kubectl rollout restart deployment redis-deployment
           
           echo "Esperando a que los pods estén listos..."
-          kubectl wait --for=condition=ready pod -l app=web --timeout=120s
-          kubectl wait --for=condition=ready pod -l app=redis --timeout=120s
+          kubectl wait --for=condition=ready pod -l app=web --timeout=180s
+          kubectl wait --for=condition=ready pod -l app=redis --timeout=180s
           
-          # Mostrar IP externa
+          echo "✅ Despliegue completado"
           echo "IP del LoadBalancer:"
-          kubectl get service web-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+          kubectl get service web-service -o wide
